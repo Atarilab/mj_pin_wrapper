@@ -1,8 +1,6 @@
-<mujoco model="go2 scene">
+<mujoco model="my scene">
 
-  <include file="ROBOT_MODEL_PATH.xml"/>
-
-  <compiler angle="radian" meshdir="MESH_DIR" autolimits="true"/>
+  <compiler angle="radian" meshdir="" autolimits="true"/>
   <option cone="elliptic" impratio="100" integrator="implicitfast" timestep="0.001"/>
 
   <statistic center="0 0 0.1" extent="0.8"/>

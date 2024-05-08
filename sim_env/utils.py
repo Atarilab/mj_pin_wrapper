@@ -122,9 +122,22 @@ class RobotModelLoader:
     
     def _get_xml_string(self) -> str:
         with open(self.mj_scene_path, 'r') as file:
-            xml_string = file.read()
-            xml_string = xml_string.replace(RobotModelLoader.ROBOT_PATH_STR, self.path_mjcf)
+            lines = file.readlines()
+        
+        # Find <mujoco> balise
+        for i, line in enumerate(lines):
+            if "<mujoco" in line:
+                break
+            
+        # Add <include> line after mujoco balise
+        include_str = f"""   <include file="{self.path_mjcf}"/>"""
+        lines.insert(i + 1, include_str)
+        xml_string = ''.join(lines)
+                
+        # Change mesh dir
+        if 'meshdir=""' in xml_string:
             abs_path_mesh_dir = self._get_abs_path_mesh_dir()
-            xml_string = xml_string.replace(RobotModelLoader.MESH_DIR_STR, abs_path_mesh_dir)
+            xml_string = xml_string.replace('meshdir=""',
+                                            f'meshdir="{abs_path_mesh_dir}"')
             
         return xml_string
