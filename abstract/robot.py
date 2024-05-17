@@ -6,7 +6,7 @@ import pinocchio as pin
 import mujoco
 import os
 from copy import deepcopy
-from typing import Tuple
+from typing import Any, Callable, Tuple
 
 ######################################################################
 #####
@@ -32,7 +32,7 @@ class RobotWrapperAbstract(object):
     # Default optionals
     DEFAULT_ROTOR_INERTIA = 0.
     DEFAULT_GEAR_RATIO = 1.
-    DEFAULT_JOINT_DAMPING = 0.05
+    DEFAULT_JOINT_DAMPING = 0.1
     DEFAULT_FRICTION_LOSS = 0.001
     
     def __init__(self,
@@ -45,6 +45,7 @@ class RobotWrapperAbstract(object):
         self.path_urdf = path_urdf
         self.path_xml_mj = path_xml_mj
         self.path_package_dir = path_package_dir
+        self.collided = False
         
         # Optional args
         optional_args = {
@@ -306,8 +307,8 @@ class RobotWrapperAbstract(object):
             self.mj_model.geom(contact.geom[1]).name
         )
         
-        eeff_in_contact_floor = dict.fromkeys(self.body_eeff_names, False)
-        
+        eeff_in_contact_floor = dict.fromkeys(self.mj_geom_eeff_names, False)
+
         # Filter contacts
         for geom_contact_name in map(
                 geom_name_from_contact,
@@ -316,6 +317,51 @@ class RobotWrapperAbstract(object):
             eeff_in_contact_floor[geom_contact_name] = True
            
         return eeff_in_contact_floor
+    
+    def is_collision(self,
+                     exclude_end_effectors: bool = True) -> bool:
+        """
+        Return True if some robot geometries are in contact
+        with the environment.
+        
+        Args:
+            - exclude_end_effectors (bool): exclude contacts of the end-effectors.
+        """
+        n_eeff_contact = 0
+        if exclude_end_effectors:
+            eeff_contact = self.get_mj_eeff_contact_with_floor()
+            n_eeff_contact = sum([int(contact) for contact in eeff_contact.values()])
+        
+        n_contact = len(self.mj_data.contact)
+        
+        is_collision, self.collided = False, False
+        if n_eeff_contact != n_contact:
+            is_collision, self.collided = True, True
+        
+        return is_collision
+       
+    def reset(self, q0: Any|np.ndarray = None) -> None:
+        """
+        Reset robot state and simulation state.
+
+        Args:
+            - q0 (np.ndarray): Initial state.
+        """
+        # Reset mj data
+        self.mj_data = mujoco.MjData(self.mj_model)
+        
+        if not isinstance(q0, np.ndarray) and q0 == None:
+            # Set to initial position
+            mujoco.mj_resetDataKeyframe(self.mj_model, self.mj_data, 0)
+            q0, _ = self.get_mj_state()
+        self.mj_data.qpos = q0
+            
+        
+        # Reset pin data
+        q0, _ = self.get_pin_state()
+        pin.framesForwardKinematics(self.pin_model, self.pin_data, q0)
+        pin.updateFramePlacements(self.pin_model, self.pin_data)
+           
 
 ######################################################################
 #####
