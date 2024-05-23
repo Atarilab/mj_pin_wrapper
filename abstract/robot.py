@@ -379,7 +379,7 @@ class QuadrupedWrapperAbstract(RobotWrapperAbstract):
                   THIGH_NAMES +\
                   CALF_NAMES
     
-    DEFAULT_FOOT_SIZE = 0.025
+    DEFAULT_FOOT_SIZE = 0.015
                       
     def __init__(self,
                  path_urdf: str,
@@ -410,6 +410,9 @@ class QuadrupedWrapperAbstract(RobotWrapperAbstract):
         self.pin_feet_frame_name = self._get_pin_lowest_frames()
         
         self.n_pin_frames = len(self.pin_model.frames)
+
+        # Base geometries
+        self.mj_base_geom_id = self._get_base_mj_geometry_id()
             
     def get_pin_position_world(self, frame_name_list: list[str]) -> np.array:
         """
@@ -659,3 +662,74 @@ class QuadrupedWrapperAbstract(RobotWrapperAbstract):
         res = base_joint_id + hip_joint_id + thigh_joint_id + calf_joint_id
         res = [self.pin_model.names[id] for id in res]
         return res
+    
+    def _get_base_mj_geometry_id(self) -> str:
+        """
+        Return the name of the geometries of the base body, based on the kinematic tree.
+        """
+        # Parent body id
+        body_parent_id = [
+            self.mj_model.body(i).parentid[0]
+            for i in range(self.n_body)
+            ]
+        
+        # The base should be parent of at least 4 bodies
+        count_dict = dict.fromkeys(body_parent_id, 0)
+        body_base_id = -1
+        for id in body_parent_id:
+            count_dict[id] += 1
+        
+            if count_dict[id] == 4:
+                body_base_id = id
+                break
+        
+        assert body_base_id != -1, "Base body name not found in MuJoCo model."
+
+        # Find the geometries of that body
+        base_geom_id = []
+        for geom_id in range(self.mj_model.ngeom):
+            if self.mj_model.geom_bodyid[geom_id] == body_base_id:
+                # Get the name of the geometry
+                base_geom_id.append(geom_id)
+
+        assert len(base_geom_id) > 0, f"No geometries found for body {body_base_id}"
+
+        return base_geom_id
+
+    def is_collision(self,
+                     exclude_end_effectors: bool = True,
+                     only_base: bool = False) -> bool:
+        """
+        Return True if some robot geometries are in contact
+        with the environment.
+        
+        Args:
+            - exclude_end_effectors (bool): exclude contacts of the end-effectors.
+            - only_base (bool): check only the contacts with the base.
+        """
+        is_collision, self.collided = False, False
+
+        if only_base:
+            # True if one of the end effector geometries is in contact with
+            # the floor
+            is_contact_base_floor = lambda contact : (
+                contact.geom[0] == self.mj_id_floor and
+                contact.geom[1] in self.mj_base_geom_id
+                )
+
+            # Filter contacts
+            if next(filter(is_contact_base_floor, self.mj_data.contact), None):
+                is_collision, self.collided = True, True
+            return is_collision
+
+        n_eeff_contact = 0
+        if exclude_end_effectors:
+            eeff_contact = self.get_mj_eeff_contact_with_floor()
+            n_eeff_contact = sum([int(contact) for contact in eeff_contact.values()])
+            
+            n_contact = len(self.mj_data.contact)
+            
+        if n_eeff_contact != n_contact:
+            is_collision, self.collided = True, True
+        
+        return is_collision
