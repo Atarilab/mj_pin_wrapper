@@ -192,6 +192,30 @@ class RobotWrapperAbstract(object):
             ).name : self.mj_model.actuator(i).id
             for i in range(self.n_act)
         }
+        
+        # Get all static geometries
+        self.static_geoms_id = self._get_all_static_geoms_id()
+        
+    def _get_all_static_geoms_id(self) -> list[int]:
+        """
+        Returns the id of all static geometries of the model.
+        Usefull for collision detection.
+
+        Returns:
+            list[int]: List of all static geometries indices.
+        """
+        # List to store the IDs of static geometries
+        static_geoms = []
+
+        # Loop through all geometries in the model
+        for geom_id in range(self.mj_model.ngeom):
+            # Check if the geometry's body ID is 0 (world body)
+            if self.mj_model.geom_bodyid[geom_id] == 0:
+                # Get the name of the geometry (if it has one)
+                geom_name = mujoco.mj_id2name(self.mj_model, mujoco.mjtObj.mjOBJ_GEOM, geom_id)
+                static_geoms.append(geom_id)
+                
+        return static_geoms
     
     def _get_mj_eeffectors_body(self) ->  list[str]:
         """
@@ -295,26 +319,20 @@ class RobotWrapperAbstract(object):
         Returns:
             eeff_in_contact_floor (dict): dict {eeff name : contact (as a bool)}
         """
-        # True if one of the end effector geometries is in contact with
-        # the floor
-        is_contact_eeff_floor = lambda contact : (
-            contact.geom[0] == self.mj_id_floor and
-            contact.geom[1] in self.mj_geom_eeff_id
-            )
-        
-        # Map geometry name from contact
-        geom_name_from_contact = lambda contact : (
-            self.mj_model.geom(contact.geom[1]).name
-        )
-        
+
         eeff_in_contact_floor = dict.fromkeys(self.mj_geom_eeff_names, False)
 
         # Filter contacts
-        for geom_contact_name in map(
-                geom_name_from_contact,
-                filter(is_contact_eeff_floor, self.mj_data.contact)
-                ):
-            eeff_in_contact_floor[geom_contact_name] = True
+        for cnt in self.mj_data.contact:
+            if (cnt.geom[0] in self.static_geoms_id and
+                cnt.geom[1] in self.mj_geom_eeff_id):
+                eeff_name = self.mj_model.geom(cnt.geom[0]).name
+                eeff_in_contact_floor[eeff_name] = True
+                
+            elif (cnt.geom[1] in self.static_geoms_id and
+                cnt.geom[0] in self.mj_geom_eeff_id):
+                eeff_name = self.mj_model.geom(cnt.geom[0]).name
+                eeff_in_contact_floor[eeff_name] = True
            
         return eeff_in_contact_floor
     
@@ -726,7 +744,6 @@ class QuadrupedWrapperAbstract(RobotWrapperAbstract):
         if exclude_end_effectors:
             eeff_contact = self.get_mj_eeff_contact_with_floor()
             n_eeff_contact = sum([int(contact) for contact in eeff_contact.values()])
-            
             n_contact = len(self.mj_data.contact)
             
         if n_eeff_contact != n_contact:
