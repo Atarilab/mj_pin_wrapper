@@ -9,7 +9,7 @@ class RobotModelLoader:
     
     DEFAULT_MESH_DIR = "assets"
     DEFAULT_SCENE_PATH = "./mj_pin_wrapper/sim_env/scene.xml"
-    DEFAULT_MODELS_PATH = "../robots"
+    DEFAULT_MODELS_PATH = "./robots"
     
     def __init__(self,
                  robot_name: str,
@@ -26,26 +26,29 @@ class RobotModelLoader:
         optional_args.update(kwargs)
         for k, v in optional_args.items(): setattr(self, k, v)
         
-        # Try load from official git repo
-        self.path_urdf,\
-        self.path_mjcf,\
-        self.package_dir = self._get_robot_model_paths_from_repo(self.robot_name)
-        
-        # Or try from custom local files
-        if (self.path_urdf == "" or
-            self.path_mjcf == "" or
-            self.path_urdf == []
-            ):
-            # robot directory
-            self.robot_dir = self._get_robot_dir()
-            assert self.robot_dir != "", f"Robot model directory {self.robot_name} not found."
+
+        # Try from custom local files
+        self.path_urdf, self.path_mjcf = "", ""
+        # robot directory
+        self.robot_dir = self._get_robot_dir()
+        if self.robot_dir != "":
             # urdf description
             self.path_urdf = self._find_local_urdf()
             # xml description
             self.path_mjcf = self._find_local_xml()
             # package dir
             self.package_dir = self._get_local_package_dir()
+        else:
+            print(f"Robot model directory {self.robot_name} not found.")
             
+        # Or try load from official git repo
+        if (self.path_mjcf == "" or
+            self.path_urdf == ""
+            ):
+            self.path_urdf,\
+            self.path_mjcf,\
+            self.package_dir = self._get_robot_model_paths_from_repo(self.robot_name)
+
         assert self.path_urdf != "", f"Robot urdf description not found."
         assert self.path_mjcf != "", f"Robot mjcf description not found."
 
@@ -56,9 +59,9 @@ class RobotModelLoader:
         return loader.path_urdf, loader._get_xml_string(), loader.package_dir
     
     def _get_robot_dir(self):
-        for dir_name in os.listdir(RobotModelLoader.DEFAULT_MODELS_PATH):
+        for dir_name in os.listdir(self.models_path):
             if self.robot_name in dir_name:
-                robot_dir = os.path.join(RobotModelLoader.DEFAULT_MODELS_PATH, dir_name)
+                robot_dir = os.path.join(self.models_path, dir_name)
                 return robot_dir
         return ""
     
@@ -70,9 +73,9 @@ class RobotModelLoader:
         
     def _find_local_xml(self):
         # First look for mujoco dir
-        for dir_name in os.listdir(RobotModelLoader.DEFAULT_MODELS_PATH):
-            if RobotModelLoader.DEFAULT_MUJOCO_DIR in dir_name:
-                mujoco_dir = os.path.join(RobotModelLoader.DEFAULT_MODELS_PATH, dir_name)
+        for dir_name in os.listdir(self.models_path):
+            if self.models_path in dir_name:
+                mujoco_dir = os.path.join(self.models_path, dir_name)
                 xml_files = glob.glob(mujoco_dir + "/*/*.xml", recursive=True)
                 if len(xml_files) > 0:
                     return xml_files[0]
