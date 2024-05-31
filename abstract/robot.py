@@ -27,7 +27,8 @@ class RobotWrapperAbstract(object):
     """
     
     # Constants
-    PIN_2_MJ_STATE_ID = [0,1,2,4,5,6,3] + list(range(7,19))
+    PIN_2_MJ_POS = [0,1,2,6,3,4,5]
+    MJ_2_PIN_POS = [0,1,2,4,5,6,3]
     MJ_FLOOR_NAME = "floor"
     # Default optionals
     DEFAULT_ROTOR_INERTIA = 0.
@@ -84,10 +85,6 @@ class RobotWrapperAbstract(object):
         self.pin_model = self.pin_robot.model
         self.pin_data = self.pin_robot.data
         self.set_pin_rotor_params(self.rotor_inertia, self.gear_ratio)
-        
-        q0, _ = self.get_pin_state()
-        pin.framesForwardKinematics(self.pin_model, self.pin_data, q0)
-        pin.updateFramePlacements(self.pin_model, self.pin_data)
         
         # Robot model parameters from MuJoCo model
         # Number of joints
@@ -196,6 +193,14 @@ class RobotWrapperAbstract(object):
         # Get all static geometries
         self.static_geoms_id = self._get_all_static_geoms_id()
         
+        # Set pin to mj state indices
+        self.pin2mjstate_id = RobotWrapperAbstract.PIN_2_MJ_POS + list(range(7, 7 + len(self.pin_joint_names)))
+        self.mj2pinstate_id = RobotWrapperAbstract.MJ_2_PIN_POS + list(range(7, 7 + len(self.pin_joint_names)))
+        
+        self.q0, _ = self.get_pin_state()
+        pin.framesForwardKinematics(self.pin_model, self.pin_data, self.q0)
+        pin.updateFramePlacements(self.pin_model, self.pin_data)
+        
     def _get_all_static_geoms_id(self) -> list[int]:
         """
         Returns the id of all static geometries of the model.
@@ -276,7 +281,7 @@ class RobotWrapperAbstract(object):
         """
         q_mj = np.take(
             self.mj_data.qpos,
-            RobotWrapperAbstract.PIN_2_MJ_STATE_ID,
+            self.mj2pinstate_id,
             mode="clip",
             )
         v_mj = self.mj_data.qvel
@@ -379,7 +384,40 @@ class RobotWrapperAbstract(object):
         q0, _ = self.get_pin_state()
         pin.framesForwardKinematics(self.pin_model, self.pin_data, q0)
         pin.updateFramePlacements(self.pin_model, self.pin_data)
-           
+        
+    def pin2mj_state(self, q_pin: np.ndarray) -> np.ndarray:
+        """
+        Convert Pinocchio to MuJoCo state format.
+
+        Args:
+            q (np.ndarray): State in pin format.
+
+        Returns:
+            np.ndarray: State in mj format.
+        """
+        q_mj = np.take(
+            q_pin,
+            self.mj2pinstate_id,
+            mode="clip",
+            )
+        return q_mj
+        
+    def mj2pin_state(self, q_mj: np.ndarray) -> np.ndarray:
+        """
+        Convert MuJoCo to Pinocchio state format.
+
+        Args:
+            q_mj (np.ndarray): State in mj format.
+
+        Returns:
+            np.ndarray: State in pin format.
+        """
+        q_pin = np.take(
+            q_mj,
+            self.pin2mjstate_id,
+            mode="clip",
+            )
+        return q_pin
 
 ######################################################################
 #####
