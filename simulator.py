@@ -23,14 +23,13 @@ class Simulator(object):
                               else DataRecorderAbstract()
                               )
         self.sim_dt = self.robot.mj_model.opt.timestep
-        
-        self.mj_model = self.robot.mj_model
-                
+                        
         self.sim_step = 0
         self.simulation_it_time = []
         self.q, self.v = None, None
         self.visual_callback_fn = None
         self.verbose = False
+        self.stop_sim = False
         
     def _simulation_step(self) -> None:
         """
@@ -124,23 +123,32 @@ class Simulator(object):
                 viewer.sync()
                 sim_start_time = time.time()
                 while (viewer.is_running() and
-                       (simulation_time < 0 or
+                       (simulation_time < 0. or
                         self.sim_step < simulation_time * (1 / self.sim_dt))
                        ):
                     self._simulation_step_with_timings(real_time)
                     self.update_visuals(viewer)
                     viewer.sync()
+                    
                     if self.stop_on_collision and self.robot.is_collision():
                         if self.verbose: print("Robot collision")
                         break
                     
+                    if self.stop_sim:
+                        if self.verbose: print("Simulation stopped")
+                        break
         # No viewer
         else:
             sim_start_time = time.time()
-            while (self.sim_step < simulation_time * (1 / self.sim_dt)):
+            while (simulation_time < 0. or self.sim_step < simulation_time * (1 / self.sim_dt)):
                 self._simulation_step_with_timings(real_time)
+                
                 if self.stop_on_collision and self.robot.is_collision():
                     if self.verbose: print("Robot collision")
+                    break
+                
+                if self.stop_sim:
+                    if self.verbose: print("Simulation stopped")
                     break
         
         if self.verbose:
