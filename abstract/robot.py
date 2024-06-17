@@ -255,6 +255,12 @@ class RobotWrapperAbstract(object):
         Mujoco environment step.
         """
         mujoco.mj_step(self.mj_model, self.mj_data)
+        
+        # Update pinocchio state with mujoco data
+        q, _ = self.get_pin_state()
+        pin.framesForwardKinematics(self.pin_model, self.pin_data, q)
+        # pin.computeJointJacobians(self.pin_model, self.pin_data, q)
+        # pin.computeCentroidalMomentum(self.pin_model, self.pin_data, q, v)
     
     def set_pin_rotor_params(self,
                              rotor_inertia: float = 0.,
@@ -331,7 +337,7 @@ class RobotWrapperAbstract(object):
         for cnt in self.mj_data.contact:
             if (cnt.geom[0] in self.static_geoms_id and
                 cnt.geom[1] in self.mj_geom_eeff_id):
-                eeff_name = self.mj_model.geom(cnt.geom[0]).name
+                eeff_name = self.mj_model.geom(cnt.geom[1]).name
                 eeff_in_contact_floor[eeff_name] = True
                 
             elif (cnt.geom[1] in self.static_geoms_id and
@@ -363,12 +369,13 @@ class RobotWrapperAbstract(object):
         
         return is_collision
        
-    def reset(self, q0: Any|np.ndarray = None) -> None:
+    def reset(self, q0: Any|np.ndarray = None, v0: Any|np.ndarray = None) -> None:
         """
         Reset robot state and simulation state.
 
         Args:
             - q0 (np.ndarray): Initial state.
+            - v0 (np.ndarray): Initial velocities.
         """
         # Reset mj data
         self.mj_data = mujoco.MjData(self.mj_model)
@@ -377,12 +384,15 @@ class RobotWrapperAbstract(object):
             # Set to initial position
             mujoco.mj_resetDataKeyframe(self.mj_model, self.mj_data, 0)
             q0, _ = self.get_mj_state()
-        self.mj_data.qpos = q0
+        if not isinstance(v0, np.ndarray) and v0 == None:
+            v0 = np.zeros(len(q0) - 1)
             
-        
+        self.mj_data.qpos = q0
+        self.mj_data.qvel = v0
+            
         # Reset pin data
-        q0, _ = self.get_pin_state()
-        pin.framesForwardKinematics(self.pin_model, self.pin_data, q0)
+        q0, v0 = self.get_pin_state()
+        pin.forwardKinematics(self.pin_model, self.pin_data, q0, v0)
         pin.updateFramePlacements(self.pin_model, self.pin_data)
         
     def pin2mj_state(self, q_pin: np.ndarray) -> np.ndarray:
@@ -397,7 +407,7 @@ class RobotWrapperAbstract(object):
         """
         q_mj = np.take(
             q_pin,
-            self.mj2pinstate_id,
+            self.pin2mjstate_id,
             mode="clip",
             )
         return q_mj
@@ -414,7 +424,7 @@ class RobotWrapperAbstract(object):
         """
         q_pin = np.take(
             q_mj,
-            self.pin2mjstate_id,
+            self.mj2pinstate_id,
             mode="clip",
             )
         return q_pin
@@ -778,13 +788,15 @@ class QuadrupedWrapperAbstract(RobotWrapperAbstract):
                 is_collision, self.collided = True, True
             return is_collision
 
-        n_eeff_contact = 0
         if exclude_end_effectors:
-            eeff_contact = self.get_mj_eeff_contact_with_floor()
-            n_eeff_contact = sum([int(contact) for contact in eeff_contact.values()])
-            n_contact = len(self.mj_data.contact)
-            
-        if n_eeff_contact != n_contact:
-            is_collision, self.collided = True, True
+            # Filter contacts
+            for cnt in self.mj_data.contact:
+                if ((cnt.geom[0] in self.static_geoms_id and
+                    not cnt.geom[1] in self.mj_geom_eeff_id)
+                    or
+                    (cnt.geom[1] in self.static_geoms_id and
+                    not cnt.geom[0] in self.mj_geom_eeff_id)
+                    ):
+                    is_collision, self.collided = True, True            
         
         return is_collision

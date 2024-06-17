@@ -9,10 +9,11 @@ class ControllerAbstract(object):
                  **kwargs,
                  ) -> None:
         self.robot = robot
+        self.diverged = False
         
     def get_torques(self,
                     q:np.array,
                     v:np.array,
                     robot_data:MjData,
                     ) -> dict[float] :
-        pass
+        return {}

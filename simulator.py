@@ -31,6 +31,15 @@ class Simulator(object):
         self.verbose = False
         self.stop_sim = False
         
+    def _reset(self) -> None:
+        """
+        Reset flags and timings.
+        """
+        self.sim_step = 0
+        self.simulation_it_time = []
+        self.verbose = False
+        self.stop_sim = False
+        
     def _simulation_step(self) -> None:
         """
         Main simulation step.
@@ -77,6 +86,27 @@ class Simulator(object):
         if real_time and time_until_next_step > 0:
             time.sleep(time_until_next_step)
             
+    def _stop_sim(self) -> bool:
+        """
+        True if the simulation has to be stopped.
+
+        Returns:
+            bool: stop simulation
+        """        
+        if self.stop_on_collision and (self.robot.collided or self.robot.is_collision()):
+            if self.verbose: print("/!\ Robot collision")
+            return True
+
+        if self.stop_sim:
+            if self.verbose: print("/!\ Simulation stopped")
+            return True
+        
+        if self.controller.diverged:
+            if self.verbose: print("/!\ Controller diverged")
+            return True
+        
+        return False
+        
     def run(self,
             simulation_time: float = -1.,
             use_viewer: bool = True,
@@ -107,7 +137,7 @@ class Simulator(object):
         self.visual_callback_fn = visual_callback_fn
         
         if self.verbose:
-            print("--- Simulation start")
+            print("-----> Simulation start")
         
         self.sim_step = 0
         
@@ -130,36 +160,29 @@ class Simulator(object):
                     self.update_visuals(viewer)
                     viewer.sync()
                     
-                    if self.stop_on_collision and self.robot.is_collision():
-                        if self.verbose: print("Robot collision")
+                    if self._stop_sim():
                         break
-                    
-                    if self.stop_sim:
-                        if self.verbose: print("Simulation stopped")
-                        break
+
         # No viewer
         else:
             sim_start_time = time.time()
             while (simulation_time < 0. or self.sim_step < simulation_time * (1 / self.sim_dt)):
                 self._simulation_step_with_timings(real_time)
-                
-                if self.stop_on_collision and self.robot.is_collision():
-                    if self.verbose: print("Robot collision")
+                if self._stop_sim():
                     break
-                
-                if self.stop_sim:
-                    if self.verbose: print("Simulation stopped")
-                    break
-        
+    
         if self.verbose:
-            print(f"--- Simulation end")
+            print(f"-----> Simulation end\n")
             sum_step_time = sum(self.simulation_it_time)
             mean_step_time = sum_step_time / len(self.simulation_it_time)
             total_sim_time = time.time() - sim_start_time
-            print(f"\tTotal optimization step time {sum_step_time:.2f} s")
-            print(f"\tMean simulation step time {mean_step_time*1000:.2f} ms")
-            print(f"\tTotal simulation time {total_sim_time:.2f} s")
+            print(f"--- Total optimization step time: {sum_step_time:.2f} s")
+            print(f"--- Mean simulation step time: {mean_step_time*1000:.2f} ms")
+            print(f"--- Total simulation time: {total_sim_time:.2f} s")
 
+        # Reset flags
+        self._reset()
+        
         # TODO: Record video
         
     def update_visuals(self, viewer) -> None:
