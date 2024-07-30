@@ -1,5 +1,8 @@
+# TUM - MIRMI - ATARI lab
+# Victor DHEDIN, 2024
+
+from typing import Any
 import numpy as np
-from mujoco._structs import MjData
 
 class DataRecorderAbstract(object):
     def __init__(self,
@@ -9,6 +12,7 @@ class DataRecorderAbstract(object):
     def record(self,
                q:np.array,
                v:np.array,
-               robot_data:MjData,
+               robot_data:Any,
+               **kwargs,
                ) -> None:
         pass

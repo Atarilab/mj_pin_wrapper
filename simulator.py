@@ -1,32 +1,40 @@
+# TUM - MIRMI - ATARI lab
+# Victor DHEDIN, 2024
+
 from typing import Any, Callable
 import mujoco
 from mujoco import viewer
 import time
-import numpy as np
-import itertools
 
-from .abstract.robot import RobotWrapperAbstract
-from .abstract.controller import ControllerAbstract
-from .abstract.data_recorder import DataRecorderAbstract
+from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
+from mj_pin_wrapper.abstract.controller import ControllerAbstract
+from mj_pin_wrapper.abstract.data_recorder import DataRecorderAbstract
 
 class Simulator(object):
+    DEFAULT_SIM_DT = 1.0e-3 #s
     def __init__(self,
-                 robot: RobotWrapperAbstract,
-                 controller: ControllerAbstract,
+                 robot: MJQuadRobotWrapper,
+                 controller: ControllerAbstract = None,
                  data_recorder: DataRecorderAbstract = None,
+                 sim_dt : float = 1.0e-3,
                  ) -> None:
         
         self.robot = robot
-        self.controller = controller
+        self.controller = (controller
+                            if controller != None
+                            else ControllerAbstract(robot)
+                            )
         self.data_recorder = (data_recorder
                               if data_recorder != None
                               else DataRecorderAbstract()
                               )
-        self.sim_dt = self.robot.mj_model.opt.timestep
-                        
+        
+        self.sim_dt = sim_dt
+        self.robot.model.opt.timestep = sim_dt
+
+        # Timings
         self.sim_step = 0
         self.simulation_it_time = []
-        self.q, self.v = None, None
         self.visual_callback_fn = None
         self.verbose = False
         self.stop_sim = False
@@ -48,22 +56,22 @@ class Simulator(object):
         - Step simulation
         """
         # Get state in Pinocchio format (x, y, z, qx, qy, qz, qw)
-        self.q, self.v = self.robot.get_pin_state()
-        
+        self.q, self.v = self.robot.get_state()
+
         # Record data
         self.data_recorder.record(self.q,
                                   self.v,
-                                  self.robot.mj_data)
+                                  self.robot.data)
         
         # Torques should be a map {joint_name : torque value}
         torques = self.controller.get_torques(self.q,
                                               self.v,
-                                              robot_data = self.robot.mj_data)
+                                              robot_data = self.robot.data)
         # Apply torques
-        self.robot.send_mj_joint_torques(torques)
-
-        # MuJoCo sim step
-        self.robot.step()
+        self.robot.send_joint_torques(torques)
+        # Sim step
+        mujoco.mj_step(self.robot.model, self.robot.data)
+        self.robot.contact_updated = False
         self.sim_step += 1
         
         # TODO: Add external disturbances
@@ -80,7 +88,7 @@ class Simulator(object):
         step_duration = time.time() - step_start
         
         self.simulation_it_time.append(step_duration)
-        
+
         # Rudimentary time keeping, will drift relative to wall clock.
         time_until_next_step = self.sim_dt - step_duration
         if real_time and time_until_next_step > 0:
@@ -143,7 +151,7 @@ class Simulator(object):
         
         # With viewer
         if use_viewer:
-            with mujoco.viewer.launch_passive(self.robot.mj_model, self.robot.mj_data) as viewer:
+            with mujoco.viewer.launch_passive(self.robot.model, self.robot.data) as viewer:
                 
                   # Enable wireframe rendering of the entire scene.
                 viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0
@@ -154,7 +162,7 @@ class Simulator(object):
                 sim_start_time = time.time()
                 while (viewer.is_running() and
                        (simulation_time < 0. or
-                        self.sim_step < simulation_time * (1 / self.sim_dt))
+                        self.sim_step * self.sim_dt < simulation_time)
                        ):
                     self._simulation_step_with_timings(real_time)
                     self.update_visuals(viewer)
@@ -194,7 +202,7 @@ class Simulator(object):
         """
         if self.visual_callback_fn != None:
             try:
-                self.visual_callback_fn(viewer, self.sim_step, self.q, self.v, self.robot.mj_data)
+                self.visual_callback_fn(viewer, self.sim_step, self.q, self.v, self.robot.data)
                 
             except Exception as e:
                 if self.verbose:

@@ -1,6 +1,10 @@
+# TUM - MIRMI - ATARI lab
+# Victor DHEDIN, 2024
+
 import importlib
 import os
 import glob
+import shutil
 
 class RobotModelLoader:
     DEFAULT_MUJOCO_DIR = "mujoco"
@@ -8,7 +12,8 @@ class RobotModelLoader:
     MESH_DIR_STR = "MESH_DIR"
     
     DEFAULT_MESH_DIR = "assets"
-    DEFAULT_SCENE_PATH = "./mj_pin_wrapper/sim_env/scene.xml"
+    DEFAULT_SCENE_NAME = "scene.xml"
+    DEFAULT_DESCRIPTION_NAME = "robot_description.xml"
     DEFAULT_MODELS_PATH = "./robots"
     
     def __init__(self,
@@ -18,9 +23,18 @@ class RobotModelLoader:
         self.robot_name = robot_name
         
         # Optional arguments
+        mj_scene_path = os.path.join(
+            os.path.dirname(__file__),
+            RobotModelLoader.DEFAULT_SCENE_NAME
+        )
+        self.description_file_path = os.path.join(
+            os.path.dirname(__file__),
+            RobotModelLoader.DEFAULT_DESCRIPTION_NAME
+        )
+
         optional_args = {
             "mesh_dir" : RobotModelLoader.DEFAULT_MESH_DIR,
-            "mj_scene_path" : RobotModelLoader.DEFAULT_SCENE_PATH,
+            "mj_scene_path" : mj_scene_path,
             "models_path" : RobotModelLoader.DEFAULT_MODELS_PATH,
         }
         optional_args.update(kwargs)
@@ -39,12 +53,9 @@ class RobotModelLoader:
             # package dir
             self.package_dir = self._get_local_package_dir()
         else:
-            print(f"Robot model directory {self.robot_name} not found.")
+            print(f"Robot model {self.robot_name} not found in local project directory. Importing from robot_descriptions.")
             
-        # Or try load from official git repo
-        if (self.path_mjcf == "" or
-            self.path_urdf == ""
-            ):
+            # Or try load from official git repo
             self.path_urdf,\
             self.path_mjcf,\
             self.package_dir = self._get_robot_model_paths_from_repo(self.robot_name)
@@ -55,14 +66,14 @@ class RobotModelLoader:
     @staticmethod
     def get_paths(robot_name: str, **kwargs):
         loader = RobotModelLoader(robot_name, **kwargs)
-        
         return loader.path_urdf, loader._get_xml_string(), loader.package_dir
     
     def _get_robot_dir(self):
-        for dir_name in os.listdir(self.models_path):
-            if self.robot_name in dir_name:
-                robot_dir = os.path.join(self.models_path, dir_name)
-                return robot_dir
+        if os.path.exists(self.models_path):
+            for dir_name in os.listdir(self.models_path):
+                if self.robot_name in dir_name:
+                    robot_dir = os.path.join(self.models_path, dir_name)
+                    return robot_dir
         return ""
     
     def _find_local_urdf(self):
@@ -126,14 +137,19 @@ class RobotModelLoader:
     def _get_xml_string(self) -> str:
         with open(self.mj_scene_path, 'r') as file:
             lines = file.readlines()
-        
+
         # Find <mujoco> balise
         for i, line in enumerate(lines):
             if "<mujoco" in line:
                 break
-            
+        
+        # Copy original file to local directory
+        shutil.copy(self.path_mjcf, self.description_file_path)
+        # Remove floor line
+        self._remove_floor_lines(self.description_file_path)
+        
         # Add <include> line after mujoco balise
-        include_str = f"""   <include file="{self.path_mjcf}"/>"""
+        include_str = f"""   <include file="{self.description_file_path}"/>"""
         lines.insert(i + 1, include_str)
         xml_string = ''.join(lines)
                 
@@ -144,3 +160,22 @@ class RobotModelLoader:
                                             f'meshdir="{abs_path_mesh_dir}"')
             
         return xml_string
+    
+    def _remove_floor_lines(self, file_path: str, output_path: str = None) -> None:
+        """
+        Remove lines containing the keyword 'floor' from the specified XML file.
+
+        Args:
+            file_path (str): The path to the input XML file.
+            output_path (str, optional): The path to save the cleaned XML file. If None, it overwrites the input file.
+        """
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+
+        cleaned_lines = [line for line in lines if 'floor' not in line]
+
+        if output_path is None:
+            output_path = file_path
+
+        with open(output_path, 'w') as file:
+            file.writelines(cleaned_lines)

@@ -1,11 +1,14 @@
-import numpy as np
-from mujoco._structs import MjData
+# TUM - MIRMI - ATARI lab
+# Victor DHEDIN, 2024
 
-from .robot import RobotWrapperAbstract
+from typing import Any
+import numpy as np
+
+from mj_pin_wrapper.abstract.robot import AbstractRobotWrapper
 
 class ControllerAbstract(object):
     def __init__(self,
-                 robot: RobotWrapperAbstract,
+                 robot: AbstractRobotWrapper,
                  **kwargs,
                  ) -> None:
         self.robot = robot
@@ -14,6 +17,7 @@ class ControllerAbstract(object):
     def get_torques(self,
                     q:np.array,
                     v:np.array,
-                    robot_data:MjData,
+                    robot_data:Any,
+                    **kwargs,
                     ) -> dict[float] :
         return {}

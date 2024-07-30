@@ -1,3 +1,7 @@
+sim_env/
+!sim_env/scene.xml
+!sim_env/utils.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
