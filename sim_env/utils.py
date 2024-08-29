@@ -53,7 +53,7 @@ class RobotModelLoader:
             # package dir
             self.package_dir = self._get_local_package_dir()
         else:
-            print(f"Robot model {self.robot_name} not found in local project directory. Importing from robot_descriptions.")
+            # print(f"Robot model {self.robot_name} not found in local project directory. Importing from robot_descriptions.")
             
             # Or try load from official git repo
             self.path_urdf,\

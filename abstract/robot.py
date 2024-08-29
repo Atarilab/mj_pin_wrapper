@@ -35,6 +35,7 @@ class AbstractRobotWrapper(object):
         
         # end effectors geom id
         self.eeff_name2id = self._init_eeff_map()
+        self.eeff_id2name = {v : k for k, v in self.eeff_name2id.items()}
         self.eeff_idx = list(self.eeff_name2id.values())
 
         # All robot geometries id
@@ -160,6 +161,13 @@ class AbstractRobotWrapper(object):
         """
         pass
     
+    def reset_contacts(self) -> None:
+        """
+        Reset contact pairs.
+        """
+        self.contacts = []
+        self.contact_updated = False
+    
     def update(self, q: NDArray[np.float64], v: NDArray[np.float64] = None) -> None:
         """
         Update robot with new configuration.
@@ -201,13 +209,12 @@ class AbstractRobotWrapper(object):
         elif exclude_end_effectors:
             # True if a geom, different from an end-effector, is in contact
             is_contact_non_eeff = lambda cnt_pair : (
-                (cnt_pair[0] in self.static_geoms_id and
+                (cnt_pair[0] in self.static_geom_id and
                 not cnt_pair[1] in self.eeff_idx)
                 or
-                (cnt_pair[1] in self.static_geoms_id and
+                (cnt_pair[1] in self.static_geom_id and
                 not cnt_pair[0] in self.eeff_idx)
             )
-            
             # Filter contacts
             if next(filter(is_contact_non_eeff, self.contacts), None):
                 is_collision, self.collided = True, True
@@ -223,7 +230,7 @@ class AbstractRobotWrapper(object):
             # Filter contacts
             if next(filter(is_self_collision, self.contacts), None):
                 is_collision, self.collided = True, True
-        
+                
         return is_collision
     
     def transform_points(self, b_T_W, points_w):
@@ -326,6 +333,8 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
         self.foot_names = AbstractQuadRobotWrapper.FOOT_NAMES
         
         self._init_feet_frames()
+        self.eeff_id2name = {v : k for k, v in self.eeff_name2id.items()}
+
         self._update_joint_frames()
         
     def _is_description_valid(self) -> bool:
@@ -404,7 +413,6 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
         self.joint_name2act_id = new_joint_name2act_id
         self.joint_name2id = new_joint_name2id
         
-        
     def foot_contacts(self) -> dict[str, int]:
         """
         Returns foot contacts with static geometries as a dict.
@@ -418,16 +426,16 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
 
         # Filter contacts
         for cnt_pair in self.contacts:
-            if (cnt_pair[0] in self.static_geoms_id and
-                cnt_pair[1] in self.mj_geom_eeff_id):
-                eeff_name = self.mj_model.geom(cnt_pair[1]).name
+            if (cnt_pair[0] in self.static_geom_id and
+                cnt_pair[1] in self.eeff_idx):
+                eeff_name = self.eeff_id2name[cnt_pair[1]]
                 foot_contacts[eeff_name] = cnt_pair[0]
-                
-            elif (cnt_pair[1] in self.static_geoms_id and
-                cnt_pair[0] in self.mj_geom_eeff_id):
-                eeff_name = self.mj_model.geom(cnt_pair[0]).name
+
+            elif (cnt_pair[1] in self.static_geom_id and
+                cnt_pair[0] in self.eeff_idx):
+                eeff_name = self.eeff_id2name[cnt_pair[0]]
                 foot_contacts[eeff_name] = cnt_pair[1]
-         
+
         return foot_contacts
     
     def get_foot_pos_world(self) -> NDArray[np.float64]:

@@ -19,5 +19,14 @@ class ControllerAbstract(object):
                     v:np.array,
                     robot_data:Any,
                     **kwargs,
-                    ) -> dict[float] :
+                    ) -> dict[float]:
+        """
+        Returns torques as a map from joint names to torque values.
+        """
         return {}
+    
+    def reset(self) -> None:
+        """
+        Reset controller
+        """
+        pass

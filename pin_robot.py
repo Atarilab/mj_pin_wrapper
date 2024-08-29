@@ -23,13 +23,14 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
                  path_package_dir: Union[str, List[str], None] = None,
                  floating_base: bool = True,
                  load_geometry: bool = False,
+                 q0: np.ndarray = None,
                  **kwargs,
                  ) -> None:
         
         self.path_urdf = path_urdf
         self.path_package_dir = path_package_dir
         self.floating_base = floating_base
-
+        
         # Optional args
         optional_args = {
             "rotor_inertia": PinQuadRobotWrapper.DEFAULT_ROTOR_INERTIA,
@@ -51,6 +52,17 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         self.model = self.pin_robot.model
         self.data = self.pin_robot.data
         
+        # configuration vector
+        self.nq = self.model.nq
+        # velocity vector space
+        self.nv = self.model.nv
+        
+        self.v0 = np.zeros((self.nv))
+        if q0 is None:
+            self.q0 = np.zeros((self.nq))
+        else:
+            self.q0 = q0
+
         self.geom_model = self.pin_robot.visual_model if load_geometry else None
         self.geom_data = pin.GeometryData(self.geom_model) if load_geometry else None
         
@@ -58,7 +70,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
 
         self.set_pin_rotor_params(self.rotor_inertia, self.gear_ratio)
         self.set_pin_limits(self.torque_limit, self.vel_limit)
-
+        
         # Set robot configuration dimensions
         # configuration vector
         self.nq = self.model.nq
@@ -68,10 +80,6 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         self.nu = len(self.joint_names)
         # Number of end effectors
         self.ne = len(self.eeff_idx)
-        
-        self._is_description_valid()
-        
-        self.q, self.v = np.zeros((self.nq)), np.zeros((self.nv))
         
     def _init_frame_map(self) -> dict[str, int]:
         """
@@ -133,7 +141,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
             NDArray[np.float64]: The position of the frame in the base frame.
         """
         frame_position = np.empty((3), np.float64)
-        if self.model.existFrame(frame_name):
+        if frame_name in self.frame_name2id.keys():
             frame_id = self.frame_name2id[frame_name]
             frame_position = self.data.oMf[frame_id].translation
         return frame_position
@@ -154,7 +162,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
             joint_position = self.data.oMi[joint_id].translation
         return joint_position
         
-    def update(self, q: NDArray[np.float64], v: NDArray[np.float64] = None) -> None:
+    def update(self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None) -> None:
         """
         Update pinocchio data with new state.
 
@@ -162,13 +170,25 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
             q (NDArray[np.float64]): Joint configuration.
             v (NDArray[np.float64], optional): Joint velocities. Defaults to zero velocities.
         """
+        if q is None:
+            q = self.q0
         if v is None:
-            v = np.zeros(self.model.nv, dtype=np.float64)
+            v = self.v0
 
         self.q, self.v = q, v
         pin.framesForwardKinematics(self.model, self.data, q)
 
         self.contact_updated = False
+        
+    def reset(self) -> None:
+        """
+        Reset pinocchio robot.
+        """
+        self.collided = False
+        self.pin_robot.rebuildData()
+        self.update()
+        q, v = self.get_state()
+        pin.computeAllTerms(self.model, self.data, q, v)
     
     def get_state(self) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
         """

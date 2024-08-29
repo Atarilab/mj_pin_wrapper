@@ -39,7 +39,7 @@ class MJPinQuadRobotWrapper(object):
         self.path_package_dir = path_package_dir
         
         self.mj : MJQuadRobotWrapper = MJQuadRobotWrapper(self.path_xml_mj, **kwargs)
-        self.pin : PinQuadRobotWrapper = PinQuadRobotWrapper(self.path_urdf, self.path_package_dir, **kwargs)
+        self.pin : PinQuadRobotWrapper = PinQuadRobotWrapper(self.path_urdf, self.path_package_dir, q0=self.mj.q0, **kwargs)
                 
         self.collided = False # True if robot is in collision
         

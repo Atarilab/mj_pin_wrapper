@@ -38,6 +38,7 @@ class Simulator(object):
         self.visual_callback_fn = None
         self.verbose = False
         self.stop_sim = False
+        self.use_viewer = False
         
     def _reset(self) -> None:
         """
@@ -48,6 +49,15 @@ class Simulator(object):
         self.verbose = False
         self.stop_sim = False
         
+    def _record_data(self) -> None:
+        """
+        Call the data recorder.
+        To be inherited.
+        """
+        self.data_recorder.record(self.q,
+                                  self.v,
+                                  self.robot.data)
+    
     def _simulation_step(self) -> None:
         """
         Main simulation step.
@@ -59,19 +69,19 @@ class Simulator(object):
         self.q, self.v = self.robot.get_state()
 
         # Record data
-        self.data_recorder.record(self.q,
-                                  self.v,
-                                  self.robot.data)
+        self._record_data()
         
         # Torques should be a map {joint_name : torque value}
         torques = self.controller.get_torques(self.q,
                                               self.v,
                                               robot_data = self.robot.data)
+        
         # Apply torques
         self.robot.send_joint_torques(torques)
-        # Sim step
+        
+        # Simulation step
         mujoco.mj_step(self.robot.model, self.robot.data)
-        self.robot.contact_updated = False
+        self.robot.reset_contacts()
         self.sim_step += 1
         
         # TODO: Add external disturbances
@@ -139,8 +149,9 @@ class Simulator(object):
             - verbose (bool, optional): Print timing informations.
             - stop_on_collision (bool, optional): Stop the simulation when there is a collision.
         """
+        self.use_viewer = use_viewer
         real_time = kwargs.get("real_time", use_viewer)
-        self.verbose = kwargs.get("verbose", True)
+        self.verbose = kwargs.get("verbose", False)
         self.stop_on_collision = kwargs.get("stop_on_collision", False)
         self.visual_callback_fn = visual_callback_fn
         
@@ -188,7 +199,7 @@ class Simulator(object):
             print(f"--- Mean simulation step time: {mean_step_time*1000:.2f} ms")
             print(f"--- Total simulation time: {total_sim_time:.2f} s")
 
-        # Reset flags
+        # Reset
         self._reset()
         
         # TODO: Record video

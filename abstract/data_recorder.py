@@ -12,7 +12,12 @@ class DataRecorderAbstract(object):
     def record(self,
                q:np.array,
                v:np.array,
-               robot_data:Any,
                **kwargs,
                ) -> None:
+        pass
+    
+    def reset(self) -> None:
+        pass
+    
+    def save(self) -> None:
         pass
