@@ -1,5 +1,9 @@
 # TUM - MIRMI - ATARI lab
 # Victor DHEDIN, 2024
+import os, sys
+from sim_env.utils import RobotModelLoader
+from mj_pin_robot import MJPinQuadRobotWrapper
+from simulator import Simulator
 
 class Go2Config:
     # Name of the robot in robot descriptions repo
@@ -11,14 +15,10 @@ class Go2Config:
     # Gear ratio (optional)
     gear_ratio = 6.33
 
-
 if __name__ == "__main__":
-    import os, sys
+    
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    from sim_env.utils import RobotModelLoader
-    from mj_pin_robot import MJPinQuadRobotWrapper
-    from simulator import Simulator
 
     ###### Robot model
     
@@ -39,4 +39,3 @@ if __name__ == "__main__":
         viewer=True,
         real_time=True,
         )
-    

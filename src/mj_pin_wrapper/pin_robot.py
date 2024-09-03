@@ -41,12 +41,12 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         for k, v in optional_args.items(): setattr(self, k, v)
         
         # Init pinocchio robot
-        self.pin_robot = pin.RobotWrapper.BuildFromURDF(
+        self.pin_robot = pin.robot_wrapper.RobotWrapper.BuildFromURDF(
             filename=self.path_urdf,
             package_dirs=self.path_package_dir,
             root_joint=pin.JointModelFreeFlyer() if self.floating_base else pin.JointModelFixed(),
-            verbose=False,
-            meshLoader=pin.GeometryModel() if load_geometry else None
+            # verbose=False,
+            # meshLoader=pin.GeometryModel() if load_geometry else None
         )
         self.model = self.pin_robot.model
         self.data = self.pin_robot.data
