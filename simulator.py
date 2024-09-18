@@ -56,7 +56,7 @@ class Simulator(object):
         """
         self.data_recorder.record(self.q,
                                   self.v,
-                                  self.robot.data)
+                                  mj_data = self.robot.data)
     
     def _simulation_step(self) -> None:
         """
