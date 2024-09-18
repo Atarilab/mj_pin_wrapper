@@ -254,7 +254,7 @@ class AbstractRobotWrapper(object):
             NDArray[np.float64]: shape [N, 3]
         """
         q, _ = self.get_state()
-        b_T_W = pin.XYZQUATToSE3(q).inverse() # transform from base to world
+        b_T_W = pin.XYZQUATToSE3(q[:7]).inverse() # transform from base to world
         points_b = transform_points(b_T_W, points_w)
         return points_b
      
