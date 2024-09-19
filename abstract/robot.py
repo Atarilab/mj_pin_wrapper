@@ -422,19 +422,19 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
         """
         if not self.contact_updated: self.update_contacts()
 
-        foot_contacts = dict.fromkeys(self.foot_names, -1)
+        foot_contacts = dict.fromkeys(self.foot_names, 0)
 
         # Filter contacts
         for cnt_pair in self.contacts:
             if (cnt_pair[0] in self.static_geom_id and
                 cnt_pair[1] in self.eeff_idx):
                 eeff_name = self.eeff_id2name[cnt_pair[1]]
-                foot_contacts[eeff_name] = cnt_pair[0]
+                foot_contacts[eeff_name] = cnt_pair[0] + 1
 
             elif (cnt_pair[1] in self.static_geom_id and
                 cnt_pair[0] in self.eeff_idx):
                 eeff_name = self.eeff_id2name[cnt_pair[0]]
-                foot_contacts[eeff_name] = cnt_pair[1]
+                foot_contacts[eeff_name] = cnt_pair[1] + 1
 
         return foot_contacts
     
