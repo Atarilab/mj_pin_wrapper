@@ -1,11 +1,14 @@
 # TUM - MIRMI - ATARI lab
 # Victor DHEDIN, 2024
 
+import os
 from typing import Any, Callable
+import cv2
 import mujoco
 from mujoco import viewer
 import time
 
+from datetime import datetime
 from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from mj_pin_wrapper.abstract.data_recorder import DataRecorderAbstract
@@ -32,12 +35,9 @@ class Simulator(object):
         self.sim_dt = sim_dt
         self.robot.model.opt.timestep = sim_dt
 
-        # Timings
-        self.sim_step = 0
-        self.simulation_it_time = []
+        # Set counters and timings variables
+        self._reset()
         self.visual_callback_fn = None
-        self.verbose = False
-        self.stop_sim = False
         self.use_viewer = False
         
     def _reset(self) -> None:
@@ -45,6 +45,7 @@ class Simulator(object):
         Reset flags and timings.
         """
         self.sim_step = 0
+        self.frame_count = 0
         self.simulation_it_time = []
         self.verbose = False
         self.stop_sim = False
@@ -124,6 +125,65 @@ class Simulator(object):
             return True
         
         return False
+    
+    def _get_video_params(self, **kwargs):
+        """
+        Record video of the simulation
+        """
+        video_save_path = kwargs.get("video_path", "./video/")
+        fps = kwargs.get("fps", 30)
+        playback_speed = kwargs.get("playback_speed", 1.0)
+        # TODO: Bug with 1080p frames
+        frame_height = kwargs.get("frame_height", 360)
+        frame_width = kwargs.get("frame_width", 640)
+        
+        # Video file path
+        video_dir, video_file = os.path.split(video_save_path)
+        if not video_file:
+            now = datetime.now() # current date and time
+            date_time = now.strftime("%m_%d_%Y_%H_%M_%S")
+            video_file = f"recording_{date_time}.mp4"
+            video_save_path = os.path.join(video_dir, video_file)
+        os.makedirs(video_dir, exist_ok=True)
+        
+        # Video writer
+        renderer = mujoco.Renderer(self.robot.model, height=frame_height, width=frame_width)
+        video_writer = cv2.VideoWriter(
+            video_save_path,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            fps,
+            (renderer.width, renderer.height)
+        )
+        
+        # Camera settings
+        cam = mujoco.MjvCamera()
+        mujoco.mjv_defaultCamera(cam)
+        cam.distance, cam.azimuth, cam.elevation = 1.35, -130, -20
+        cam.lookat[0], cam.lookat[1], cam.lookat[2] = 0.0, 0.0, 0.2
+        
+        self.frame_count = 0
+        self.last_frame_time = 0.0  # Initialize time of the last frame
+    
+        return video_writer, renderer, cam, playback_speed, fps
+    
+    def _record_frame(self, video_writer, renderer, cam, playback_speed, fps):
+        """
+        Record a frame based on simulation time and playback speed.
+        """
+        # Time per frame in simulation, adjusted for playback speed
+        frame_time_interval = 1.0 / fps * playback_speed
+
+        # Check if it's time to record the next frame
+        current_sim_time = self.robot.data.time
+        if current_sim_time - self.last_frame_time >= frame_time_interval:
+            renderer.update_scene(self.robot.data, cam)
+            image = renderer.render()
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            video_writer.write(image)
+
+            # Update frame time and frame count
+            self.last_frame_time = current_sim_time
+            self.frame_count += 1
         
     def run(self,
             simulation_time: float = -1.,
@@ -149,16 +209,19 @@ class Simulator(object):
             - verbose (bool, optional): Print timing informations.
             - stop_on_collision (bool, optional): Stop the simulation when there is a collision.
         """
-        self.use_viewer = use_viewer
-        real_time = kwargs.get("real_time", use_viewer)
-        self.verbose = kwargs.get("verbose", False)
+        self.verbose = kwargs.get("verbose", True)
         self.stop_on_collision = kwargs.get("stop_on_collision", False)
+        real_time = kwargs.get("real_time", use_viewer)
+        record_video = kwargs.get("record_video", False)
         self.visual_callback_fn = visual_callback_fn
         
         if self.verbose:
             print("-----> Simulation start")
         
         self.sim_step = 0
+        
+        if record_video:
+            video_writer, renderer, cam, playback_speed, fps = self._get_video_params(**kwargs)
         
         # With viewer
         if use_viewer:
@@ -173,11 +236,14 @@ class Simulator(object):
                 sim_start_time = time.time()
                 while (viewer.is_running() and
                        (simulation_time < 0. or
-                        self.sim_step * self.sim_dt < simulation_time)
+                        self.sim_step < simulation_time * (1 / self.sim_dt))
                        ):
                     self._simulation_step_with_timings(real_time)
                     self.update_visuals(viewer)
                     viewer.sync()
+                    
+                    if record_video:
+                        self._record_frame(video_writer, renderer, cam, playback_speed, fps)
                     
                     if self._stop_sim():
                         break
@@ -187,6 +253,10 @@ class Simulator(object):
             sim_start_time = time.time()
             while (simulation_time < 0. or self.sim_step < simulation_time * (1 / self.sim_dt)):
                 self._simulation_step_with_timings(real_time)
+                
+                if record_video:
+                    self._record_frame(video_writer, renderer, cam, playback_speed, fps)
+                    
                 if self._stop_sim():
                     break
     
@@ -199,10 +269,11 @@ class Simulator(object):
             print(f"--- Mean simulation step time: {mean_step_time*1000:.2f} ms")
             print(f"--- Total simulation time: {total_sim_time:.2f} s")
 
-        # Reset
+        # Reset flags
         self._reset()
         
-        # TODO: Record video
+        if record_video:
+            video_writer.release()
         
     def update_visuals(self, viewer) -> None:
         """
