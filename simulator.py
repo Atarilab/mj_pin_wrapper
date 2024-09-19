@@ -7,6 +7,7 @@ import cv2
 import mujoco
 from mujoco import viewer
 import time
+import numpy as np
 
 from datetime import datetime
 from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
@@ -35,12 +36,11 @@ class Simulator(object):
         self.sim_dt = sim_dt
         self.robot.model.opt.timestep = sim_dt
 
-        # Set counters and timings variables
         self._reset()
         self.visual_callback_fn = None
         self.use_viewer = False
-        
-    def _reset(self) -> None:
+
+    def _reset(self):
         """
         Reset flags and timings.
         """
@@ -49,7 +49,12 @@ class Simulator(object):
         self.simulation_it_time = []
         self.verbose = False
         self.stop_sim = False
-        
+        self.external_force_active = False
+        self.external_force_duration = 0
+        self.external_force_time_remaining = 0
+        self.external_force_intensity = 0.
+        self.external_force_period = 0.
+
     def _record_data(self) -> None:
         """
         Call the data recorder.
@@ -80,12 +85,13 @@ class Simulator(object):
         # Apply torques
         self.robot.send_joint_torques(torques)
         
+        # Apply external force if active
+        self._apply_external_force()
+        
         # Simulation step
         mujoco.mj_step(self.robot.model, self.robot.data)
         self.robot.reset_contacts()
         self.sim_step += 1
-        
-        # TODO: Add external disturbances
         
     def _simulation_step_with_timings(self,
                                       real_time: bool,
@@ -126,7 +132,7 @@ class Simulator(object):
         
         return False
     
-    def _get_video_params(self, **kwargs):
+    def _set_video_params(self, **kwargs):
         """
         Record video of the simulation
         """
@@ -164,7 +170,7 @@ class Simulator(object):
         self.frame_count = 0
         self.last_frame_time = 0.0  # Initialize time of the last frame
     
-        return video_writer, renderer, cam, playback_speed, fps
+        return video_writer, renderer, cam
     
     def _record_frame(self, video_writer, renderer, cam, playback_speed, fps):
         """
@@ -184,45 +190,131 @@ class Simulator(object):
             # Update frame time and frame count
             self.last_frame_time = current_sim_time
             self.frame_count += 1
-        
+            
+    def _apply_external_force(self):
+        """
+        Apply external force to the robot if active.
+        """
+        if (self.external_force_active and
+            self.sim_step * self.sim_dt > 0.75 and # No force applied before 0.75s of simulation
+            self.external_force_time_remaining > 0):
+            
+            # Apply force at random timing 
+            prob_apply_force = self.sim_dt * self.external_force_period
+            if (np.random.rand() < prob_apply_force or
+                self.external_force_time_remaining < self.external_force_duration
+                ):
+                
+                # Set random direction
+                if self.external_force_direction is None:
+                    self.external_force_direction = np.random.randn(3)
+                    self.external_force_direction /= np.linalg.norm(self.external_force_direction)  # Normalize to unit vector
+                
+                # Apply the external force
+                force = self.external_force_intensity * self.external_force_direction
+                force[-1] /= 5.
+                torque = self.external_force_direction[::-1]
+                
+                perturb = np.concatenate((force, torque))
+                
+                base_id = self.robot.model.body("base").id
+                self.robot.data.xfrc_applied[base_id] = perturb
+
+                # Decrease remaining force duration
+                self.external_force_time_remaining -= self.sim_dt
+        else:
+            # Reset external force if duration is over
+            self.external_force_direction = None
+            self.external_force_time_remaining = self.external_force_duration
+            
+    def _set_external_force(self,
+                            duration:float,
+                            intensity:float,
+                            period:float):
+        """
+        Apply a random external force to the robot.
+
+        Args:
+        - duration (float): Duration of the external force in seconds.
+        - intensity (float): Magnitude of the external force (N).
+        """
+        self.external_force_active = True
+        self.external_force_direction = None
+        self.external_force_intensity = intensity
+        self.external_force_duration = duration
+        self.external_force_period = period
+        self.external_force_time_remaining = duration
+
+        if self.verbose:
+            print(f"Applying external force: Duration = {duration}s, Intensity = {intensity}N, Period = {period}s")
+
     def run(self,
-            simulation_time: float = -1.,
+            simulation_time: float = -1.0,
             use_viewer: bool = True,
-            visual_callback_fn: Callable = None,
-            **kwargs,
-            ) -> None:
+            real_time: bool = True,
+            verbose: bool = True,
+            stop_on_collision: bool = False,
+            record_video: bool = False,
+            video_path: str = "./video/",
+            fps: int = 30,
+            playback_speed: float = 1.0,
+            frame_height: int = 360,
+            frame_width: int = 640,
+            force_duration: float = 0.0,
+            force_period: float = 1.0,
+            force_intensity: float = 0.0,
+            visual_callback_fn: Callable = None):
         """
         Run simulation for <simulation_time> seconds with or without a viewer.
 
         Args:
-            - simulation_time (float, optional): Simulation time in second.
-            Unlimited if -1. Defaults to -1.
+            - simulation_time (float): Duration of the simulation in seconds. 
+            Set to -1 for an unlimited simulation (default is -1).
+            - use_viewer (bool): Whether to use the MuJoCo viewer. Default is True.
+            - real_time (bool): Run simulation in real time (if True). Default is True.
+            - verbose (bool): If True, print simulation and timing information. Default is True.
+            - stop_on_collision (bool): If True, stop the simulation upon collision. Default is False.
+            - record_video (bool): Whether to record video. Default is False.
+            - video_path (str): Path where the video will be saved. Default is "./video/".
+            - fps (int): Frames per second for video recording. Default is 30.
+            - playback_speed (float): Playback speed for the video. Default is 1.0.
+            - frame_height (int): Frame height for video recording. Default is 360.
+            - frame_width (int): Frame width for video recording. Default is 640.
+            - force_duration (float): Duration of the external force in seconds. Default is 0.
+            - force_period (float): Apply force every <force_period> on average. Default is 1s.
+            - force_intensity (float): Intensity of the external force in Newtons. Default is 0.
             - visual_callback_fn (fn): function that takes as input:
                 - the viewer
                 - the simulation step
                 - the state
                 - the simulation data
-            that create visual geometries using the mjv_initGeom function.
-            See https://mujoco.readthedocs.io/en/stable/python.html#passive-viewer
-            for an example.
-            - viewer (bool, optional): Use viewer. Defaults to True.
-            - verbose (bool, optional): Print timing informations.
-            - stop_on_collision (bool, optional): Stop the simulation when there is a collision.
-        """
-        self.verbose = kwargs.get("verbose", True)
-        self.stop_on_collision = kwargs.get("stop_on_collision", False)
-        real_time = kwargs.get("real_time", use_viewer)
-        record_video = kwargs.get("record_video", False)
+                it creates visual geometries using the mjv_initGeom function.
+                See https://mujoco.readthedocs.io/en/stable/python.html#passive-viewer
+                for an example.
+            """
+        self.verbose = verbose
+        self.stop_on_collision = stop_on_collision
         self.visual_callback_fn = visual_callback_fn
-        
+
         if self.verbose:
             print("-----> Simulation start")
-        
+
+        # Apply external force if requested
+        apply_force = force_duration > 0. and force_intensity > 0.
+        if apply_force:
+            self._set_external_force(force_duration, force_intensity, force_period)
+
         self.sim_step = 0
-        
+
         if record_video:
-            video_writer, renderer, cam, playback_speed, fps = self._get_video_params(**kwargs)
-        
+            video_writer, renderer, cam = self._set_video_params(
+                video_path=video_path,
+                fps=fps,
+                playback_speed=playback_speed,
+                frame_height=frame_height,
+                frame_width=frame_width
+            )
+
         # With viewer
         if use_viewer:
             with mujoco.viewer.launch_passive(self.robot.model, self.robot.data) as viewer:
@@ -274,7 +366,7 @@ class Simulator(object):
         
         if record_video:
             video_writer.release()
-        
+
     def update_visuals(self, viewer) -> None:
         """
         Update visuals according to visual_callback_fn.
