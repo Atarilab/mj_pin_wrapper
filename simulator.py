@@ -73,14 +73,14 @@ class Simulator(object):
         """
         # Get state in Pinocchio format (x, y, z, qx, qy, qz, qw)
         self.q, self.v = self.robot.get_state()
-
-        # Record data
-        self._record_data()
         
         # Torques should be a map {joint_name : torque value}
         torques = self.controller.get_torques(self.q,
                                               self.v,
                                               robot_data = self.robot.data)
+        
+        # Record data
+        self._record_data()
         
         # Apply torques
         self.robot.send_joint_torques(torques)
@@ -212,8 +212,8 @@ class Simulator(object):
                 
                 # Apply the external force
                 force = self.external_force_intensity * self.external_force_direction
-                force[-1] /= 5.
                 torque = self.external_force_direction[::-1]
+                force[-1] /= 3.
                 
                 perturb = np.concatenate((force, torque))
                 
@@ -224,6 +224,8 @@ class Simulator(object):
                 self.external_force_time_remaining -= self.sim_dt
         else:
             # Reset external force if duration is over
+            if not self.use_viewer:
+                self.robot.data.xfrc_applied = 0.
             self.external_force_direction = None
             self.external_force_time_remaining = self.external_force_duration
             
