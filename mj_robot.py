@@ -375,6 +375,33 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
         self.contacts = [cnt.geom.tolist() for cnt in self.data.contact]
         self.contact_updated = True
     
+    def get_foot_contact_forces(self) -> dict[str, np.ndarray]:
+        """
+        Compute and return the contact forces for each foot in world coordinates.
+
+        Returns:
+            dict[str, np.ndarray]: Dictionary with contact forces for each foot, 
+                                in the format {foot_name: contact_force}.
+        """
+        foot_forces = {}
+        
+        # Iterate over each foot to calculate contact forces
+        for foot_name in MJQuadRobotWrapper.FOOT_NAMES:
+            foot_geom_id = self.eeff_name2id[foot_name]
+            # Sum all forces applied to the foot geometry
+            force_torque = np.zeros(6)
+            
+            for j, contact in enumerate(self.data.contact):
+                # Check if the contact involves the foot geometry
+                if contact.geom1 == foot_geom_id or contact.geom2 == foot_geom_id:
+                    # Add the contact force contribution                    
+                    mujoco.mj_contactForce(self.model, self.data, j, force_torque)
+
+            # Store the total force for the foot
+            foot_forces[foot_name] = force_torque[:3]
+        
+        return foot_forces
+
     def xyzw2wxyz(self, q_xyzw: NDArray[np.float64]) -> NDArray[np.float64]:
         """
         Convert Pinocchio to MuJoCo state format.
