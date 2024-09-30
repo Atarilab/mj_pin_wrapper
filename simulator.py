@@ -16,6 +16,8 @@ from mj_pin_wrapper.abstract.data_recorder import DataRecorderAbstract
 
 class Simulator(object):
     DEFAULT_SIM_DT = 1.0e-3 #s
+    DEFAULT_N_BODY_FEXT = 4
+    DEFAULT_START_FEXT = 0.5 #s
     def __init__(self,
                  robot: MJQuadRobotWrapper,
                  controller: ControllerAbstract = None,
@@ -54,6 +56,8 @@ class Simulator(object):
         self.external_force_time_remaining = 0
         self.external_force_intensity = 0.
         self.external_force_period = 0.
+        self.perturbs = None
+        self.body_ids = None
 
     def _record_data(self) -> None:
         """
@@ -74,19 +78,19 @@ class Simulator(object):
         # Get state in Pinocchio format (x, y, z, qx, qy, qz, qw)
         self.q, self.v = self.robot.get_state()
         
+        # Apply external force if active
+        self._apply_external_force()
+        
         # Torques should be a map {joint_name : torque value}
         torques = self.controller.get_torques(self.q,
                                               self.v,
                                               robot_data = self.robot.data)
         
-        # Record data
+        # Record data if no perturbation applied
         self._record_data()
         
         # Apply torques
         self.robot.send_joint_torques(torques)
-        
-        # Apply external force if active
-        self._apply_external_force()
         
         # Simulation step
         mujoco.mj_step(self.robot.model, self.robot.data)
@@ -190,13 +194,41 @@ class Simulator(object):
             # Update frame time and frame count
             self.last_frame_time = current_sim_time
             self.frame_count += 1
-            
+    
+    def _get_random_bodies_random_forces(self, N_perturb : int):
+        """
+        Sample a random body and a random external force.
+        """
+        N_perturb = Simulator.DEFAULT_N_BODY_FEXT
+        
+        # Set random force direction
+        external_force_direction = np.random.randn(N_perturb, 3)
+        external_force_direction /= np.linalg.norm(external_force_direction, axis=-1, keepdims=True)  # Normalize to unit vector
+        external_torque_direction = np.random.randn(N_perturb, 3)
+        external_torque_direction /= np.linalg.norm(external_torque_direction, axis=-1, keepdims=True)  # Normalize to unit vector
+        
+        # Randomize the force intensity between a range (e.g., [0.5 * intensity, intensity])
+        force_intensity = np.random.uniform(0.1, 1.0, size=(N_perturb, 1)) * self.external_force_intensity
+        torque_intensity = np.random.uniform(0.1, 1.0, size=(N_perturb, 1)) * self.external_force_intensity / 3.
+        
+        # force and torque vectors
+        force = force_intensity * external_force_direction
+        force[:, -1] /= 3. # Less force on z to avoid robot lift-off
+        torque = torque_intensity * external_torque_direction
+        perturbs = np.concatenate((force, torque), axis=-1)
+        
+        # Pick random bodies
+        # Choose a random body to apply the force to
+        body_ids = np.random.choice(self.robot.model.nbody, N_perturb)
+
+        return body_ids, perturbs
+
     def _apply_external_force(self):
         """
         Apply external force to the robot if active.
         """
         if (self.external_force_active and
-            self.sim_step * self.sim_dt > 0.75 and # No force applied before 0.75s of simulation
+            self.sim_step * self.sim_dt > Simulator.DEFAULT_START_FEXT and # No force applied before 0.5s of simulation
             self.external_force_time_remaining > 0):
             
             # Apply force at random timing 
@@ -204,21 +236,10 @@ class Simulator(object):
             if (np.random.rand() < prob_apply_force or
                 self.external_force_time_remaining < self.external_force_duration
                 ):
+                if self.perturbs is None:
+                    self.body_ids, self.perturbs = self._get_random_bodies_random_forces(Simulator.DEFAULT_N_BODY_FEXT)
                 
-                # Set random direction
-                if self.external_force_direction is None:
-                    self.external_force_direction = np.random.randn(3)
-                    self.external_force_direction /= np.linalg.norm(self.external_force_direction)  # Normalize to unit vector
-                
-                # Apply the external force
-                force = self.external_force_intensity * self.external_force_direction
-                torque = self.external_force_direction[::-1]
-                force[-1] /= 3.
-                
-                perturb = np.concatenate((force, torque))
-                
-                base_id = self.robot.model.body("base").id
-                self.robot.data.xfrc_applied[base_id] = perturb
+                self.robot.data.xfrc_applied[self.body_ids] = self.perturbs
 
                 # Decrease remaining force duration
                 self.external_force_time_remaining -= self.sim_dt
@@ -226,7 +247,9 @@ class Simulator(object):
             # Reset external force if duration is over
             if not self.use_viewer:
                 self.robot.data.xfrc_applied = 0.
-            self.external_force_direction = None
+            
+            self.perturbs = None
+            self.body_ids = None
             self.external_force_time_remaining = self.external_force_duration
             
     def _set_external_force(self,
@@ -241,7 +264,8 @@ class Simulator(object):
         - intensity (float): Magnitude of the external force (N).
         """
         self.external_force_active = True
-        self.external_force_direction = None
+        self.perturbs = None
+        self.body_ids = None
         self.external_force_intensity = intensity
         self.external_force_duration = duration
         self.external_force_period = period
