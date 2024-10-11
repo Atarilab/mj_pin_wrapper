@@ -408,3 +408,66 @@ class Simulator(object):
                 if self.verbose:
                     print("Can't update visual geometries.")
                     print(e)
+
+    def vis_trajectory( self,
+                        q_traj : np.ndarray,
+                        dt_traj : np.ndarray | None = None,
+                        loop : bool = True,
+                        record_video: bool = False,
+                        video_path: str = "./video/",
+                        fps: int = 30,
+                        playback_speed: float = 1.0,
+                        frame_height: int = 360,
+                        frame_width: int = 640,
+                        ) -> None:
+        """
+        Visualize a trajectory in the viewer.
+        
+        Args:
+            q_traj (np.ndarray): State trajectory ([T, nq])
+            dt_traj (np.ndarray): Time intervals ([T, nq])
+            loop (bool): Loop the visualization
+        """
+        if dt_traj is None:
+            dt_traj = np.full((len(q_traj)), self.sim_dt)
+
+        assert len(dt_traj) == len(q_traj), "Provided state and time intervals should have the same length."
+
+        if record_video:
+            video_writer, renderer, cam = self._set_video_params(
+                video_path=video_path,
+                fps=fps,
+                playback_speed=playback_speed,
+                frame_height=frame_height,
+                frame_width=frame_width
+            )
+
+        # With viewer
+        with mujoco.viewer.launch_passive(self.robot.model, self.robot.data) as viewer:
+            
+            viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0
+            viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_FOG] = 0
+            viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = 0
+            
+            viewer.sync()
+
+            replay = True
+            while (viewer.is_running() and replay):
+
+                for q, dt in zip(q_traj, dt_traj):
+                    self.robot.data.qpos = self.robot.xyzw2wxyz(q)
+                    
+                    mujoco.mj_kinematics(self.robot.model, self.robot.data)
+                    viewer.sync()
+                    time.sleep(dt)
+
+                    if record_video:
+                            self._record_frame(video_writer, renderer, cam, playback_speed, fps)
+
+                if record_video:
+                    video_writer.release()
+                    
+                replay = loop
+                if replay:
+                    time.sleep(1)
+
