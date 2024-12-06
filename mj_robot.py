@@ -11,7 +11,7 @@ import os
 from typing import Tuple
 from numpy.typing import NDArray
 
-from mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
+from utils.mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
 
 ######################################################################
 #####

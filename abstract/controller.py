@@ -4,7 +4,7 @@
 from typing import Any
 import numpy as np
 
-from mj_pin_wrapper.abstract.robot import AbstractRobotWrapper
+from utils.mj_pin_wrapper.abstract.robot import AbstractRobotWrapper
 
 class ControllerAbstract(object):
     def __init__(self,

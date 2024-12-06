@@ -7,8 +7,8 @@ import mujoco
 from typing import Any, Tuple
 from numpy.typing import NDArray
 
-from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
-from mj_pin_wrapper.pin_robot import PinQuadRobotWrapper
+from utils.mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
+from utils.mj_pin_wrapper.pin_robot import PinQuadRobotWrapper
 
 ######################################################################
 #####

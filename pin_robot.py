@@ -6,7 +6,7 @@ import pinocchio as pin
 from typing import List, Tuple, Union
 from numpy.typing import NDArray
 
-from mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
+from utils.mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
 
 class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
     """
