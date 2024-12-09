@@ -1,18 +1,18 @@
 # TUM - MIRMI - ATARI lab
 # Victor DHEDIN, 2024
 
-import os
-from typing import Any, Callable
-import cv2
-import mujoco
-from mujoco import viewer
-import time
-import numpy as np
-
 from datetime import datetime
-from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
+import os
+import time
+from typing import Any, Callable
+
+import cv2
 from mj_pin_wrapper.abstract.controller import ControllerAbstract
 from mj_pin_wrapper.abstract.data_recorder import DataRecorderAbstract
+from mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
+import mujoco
+from mujoco import viewer
+import numpy as np
 
 
 class Simulator(object):

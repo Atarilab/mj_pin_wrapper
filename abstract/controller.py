@@ -2,6 +2,7 @@
 # Victor DHEDIN, 2024
 
 from typing import Any
+
 import numpy as np
 
 from utils.mj_pin_wrapper.abstract.robot import AbstractRobotWrapper

@@ -2,9 +2,10 @@
 # Victor DHEDIN, 2024
 
 from typing import Any
-import pinocchio as pin
+
 import numpy as np
 from numpy.typing import NDArray
+import pinocchio as pin
 
 
 def transform_points(B_T_A: NDArray[np.float64], points_A: NDArray[np.float64]) -> NDArray[np.float64]:

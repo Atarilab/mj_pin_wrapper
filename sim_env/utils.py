@@ -1,9 +1,9 @@
 # TUM - MIRMI - ATARI lab
 # Victor DHEDIN, 2024
 
+import glob
 import importlib
 import os
-import glob
 import shutil
 
 

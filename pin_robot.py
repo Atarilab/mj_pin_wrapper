@@ -1,10 +1,11 @@
 # TUM - MIRMI - ATARI lab
 # Victor DHEDIN, 2024
 
-import numpy as np
-import pinocchio as pin
 from typing import List, Tuple, Union
+
+import numpy as np
 from numpy.typing import NDArray
+import pinocchio as pin
 
 from utils.mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
 

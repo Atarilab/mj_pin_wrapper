@@ -2,13 +2,13 @@
 # Victor DHEDIN, 2024
 
 import copy
-import numpy as np
-import mujoco
 import gc
-
-from mujoco import MjSpec
 import os
 from typing import Tuple
+
+import mujoco
+from mujoco import MjSpec
+import numpy as np
 from numpy.typing import NDArray
 
 from utils.mj_pin_wrapper.abstract.robot import AbstractQuadRobotWrapper
