@@ -7,9 +7,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-def transform_points(
-    B_T_A: NDArray[np.float64], points_A: NDArray[np.float64]
-) -> NDArray[np.float64]:
+def transform_points(B_T_A: NDArray[np.float64], points_A: NDArray[np.float64]) -> NDArray[np.float64]:
     """
     Transform a set of points from frame A to frame B.
 

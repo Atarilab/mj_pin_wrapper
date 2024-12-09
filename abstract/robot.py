@@ -133,9 +133,7 @@ class AbstractRobotWrapper(object):
         Returns:
             NDArray[np.float64]: Positions of the frames in the base frame.
         """
-        frame_positions = np.array(
-            [self.get_frame_position_world(frame_name) for frame_name in frame_names]
-        )
+        frame_positions = np.array([self.get_frame_position_world(frame_name) for frame_name in frame_names])
         return frame_positions
 
     def send_joint_torques(self, joint_torque_map: dict[str, float]) -> None:
@@ -157,9 +155,7 @@ class AbstractRobotWrapper(object):
         Returns:
             NDArray[np.float64]: Positions of the joints in the base frame.
         """
-        joint_positions = np.array(
-            [self.get_joint_position_world(joint_name) for joint_name in joint_names]
-        )
+        joint_positions = np.array([self.get_joint_position_world(joint_name) for joint_name in joint_names])
         return joint_positions
 
     def update_contacts(self) -> None:
@@ -206,9 +202,7 @@ class AbstractRobotWrapper(object):
 
         if only_base:
             # True if base in contact with one other geometry
-            is_contact_base = lambda cnt_pair: (
-                cnt_pair[1] in self.base_geom_id or cnt_pair[0] in self.base_geom_id
-            )
+            is_contact_base = lambda cnt_pair: (cnt_pair[1] in self.base_geom_id or cnt_pair[0] in self.base_geom_id)
 
             # Filter contacts
             if next(filter(is_contact_base, self.contacts), None):
@@ -217,14 +211,8 @@ class AbstractRobotWrapper(object):
         elif exclude_end_effectors:
             # True if a geom, different from an end-effector, is in contact
             is_contact_non_eeff = lambda cnt_pair: (
-                (
-                    cnt_pair[0] in self.static_geom_id
-                    and not cnt_pair[1] in self.eeff_idx
-                )
-                or (
-                    cnt_pair[1] in self.static_geom_id
-                    and not cnt_pair[0] in self.eeff_idx
-                )
+                (cnt_pair[0] in self.static_geom_id and not cnt_pair[1] in self.eeff_idx)
+                or (cnt_pair[1] in self.static_geom_id and not cnt_pair[0] in self.eeff_idx)
             )
             # Filter contacts
             if next(filter(is_contact_non_eeff, self.contacts), None):
@@ -233,9 +221,7 @@ class AbstractRobotWrapper(object):
         # Check for self collision
         if not is_collision and self_collision:
             # True if self collision
-            is_self_collision = lambda cnt_pair: (
-                (cnt_pair[0] in self.geom_idx and cnt_pair[1] in self.geom_idx)
-            )
+            is_self_collision = lambda cnt_pair: ((cnt_pair[0] in self.geom_idx and cnt_pair[1] in self.geom_idx))
 
             # Filter contacts
             if next(filter(is_self_collision, self.contacts), None):
@@ -339,9 +325,7 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
     def __init__(self, **kwargs) -> None:
         super().__init__()
 
-        self.foot_size = kwargs.get(
-            "foot_size", AbstractQuadRobotWrapper.DEFAULT_FOOT_SIZE
-        )
+        self.foot_size = kwargs.get("foot_size", AbstractQuadRobotWrapper.DEFAULT_FOOT_SIZE)
 
         # foot geom to id
         self.foot_names = AbstractQuadRobotWrapper.FOOT_NAMES
@@ -374,9 +358,7 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
         id_min_z = np.where(frame_positions[:, -1] == min_z)[0]
 
         # Filter frames at the same location
-        _, id_unique = np.unique(
-            frame_positions[id_min_z, :], return_index=True, axis=0
-        )
+        _, id_unique = np.unique(frame_positions[id_min_z, :], return_index=True, axis=0)
         id_min_z_unique = id_min_z[id_unique]
 
         # Order FL, FR, RL, RR
@@ -421,9 +403,7 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
             id = self.joint_name2id[old_name]
             new_joint_name2id[name] = id
             new_joint_name2act_id[name] = self.joint_name2act_id[old_name]
-            self.joint_names = list(
-                map(lambda x: x.replace(old_name, name), self.joint_names)
-            )
+            self.joint_names = list(map(lambda x: x.replace(old_name, name), self.joint_names))
 
         self.joint_name2act_id = new_joint_name2act_id
         self.joint_name2id = new_joint_name2id
@@ -544,7 +524,5 @@ class AbstractQuadRobotWrapper(AbstractRobotWrapper):
     def info(self) -> None:
         super().info()
         print("--- foot geometries")
-        foot_dict = {
-            k: v for k, v in self.frame_name2id.items() if k in self.foot_names
-        }
+        foot_dict = {k: v for k, v in self.frame_name2id.items() if k in self.foot_names}
         self._print_dict(foot_dict)

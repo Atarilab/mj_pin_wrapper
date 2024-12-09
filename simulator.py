@@ -29,12 +29,8 @@ class Simulator(object):
     ) -> None:
 
         self.robot = robot
-        self.controller = (
-            controller if controller != None else ControllerAbstract(robot)
-        )
-        self.data_recorder = (
-            data_recorder if data_recorder != None else DataRecorderAbstract()
-        )
+        self.controller = controller if controller != None else ControllerAbstract(robot)
+        self.data_recorder = data_recorder if data_recorder != None else DataRecorderAbstract()
 
         self.sim_dt = sim_dt
         self.robot.model.opt.timestep = sim_dt
@@ -81,9 +77,7 @@ class Simulator(object):
         self._apply_external_force()
 
         # Torques should be a map {joint_name : torque value}
-        torques = self.controller.get_torques(
-            self.q, self.v, robot_data=self.robot.data
-        )
+        torques = self.controller.get_torques(self.q, self.v, robot_data=self.robot.data)
 
         # Record data if no perturbation applied
         self._record_data()
@@ -122,9 +116,7 @@ class Simulator(object):
         Returns:
             bool: stop simulation
         """
-        if self.stop_on_collision and (
-            self.robot.collided or self.robot.is_collision()
-        ):
+        if self.stop_on_collision and (self.robot.collided or self.robot.is_collision()):
             if self.verbose:
                 print("/!\ Robot collision")
             return True
@@ -162,9 +154,7 @@ class Simulator(object):
         os.makedirs(video_dir, exist_ok=True)
 
         # Video writer
-        renderer = mujoco.Renderer(
-            self.robot.model, height=frame_height, width=frame_width
-        )
+        renderer = mujoco.Renderer(self.robot.model, height=frame_height, width=frame_width)
         video_writer = cv2.VideoWriter(
             video_save_path,
             cv2.VideoWriter_fourcc(*"mp4v"),
@@ -219,15 +209,8 @@ class Simulator(object):
         )  # Normalize to unit vector
 
         # Randomize the force intensity between a range (e.g., [0.5 * intensity, intensity])
-        force_intensity = (
-            np.random.uniform(0.1, 1.0, size=(N_perturb, 1))
-            * self.external_force_intensity
-        )
-        torque_intensity = (
-            np.random.uniform(0.1, 1.0, size=(N_perturb, 1))
-            * self.external_force_intensity
-            / 3.0
-        )
+        force_intensity = np.random.uniform(0.1, 1.0, size=(N_perturb, 1)) * self.external_force_intensity
+        torque_intensity = np.random.uniform(0.1, 1.0, size=(N_perturb, 1)) * self.external_force_intensity / 3.0
 
         # force and torque vectors
         force = force_intensity * external_force_direction
@@ -247,23 +230,15 @@ class Simulator(object):
         """
         if (
             self.external_force_active
-            and self.sim_step * self.sim_dt
-            > Simulator.DEFAULT_START_FEXT  # No force applied before 0.5s of simulation
+            and self.sim_step * self.sim_dt > Simulator.DEFAULT_START_FEXT  # No force applied before 0.5s of simulation
             and self.external_force_time_remaining > 0
         ):
 
             # Apply force at random timing
             prob_apply_force = self.sim_dt * self.external_force_period
-            if (
-                np.random.rand() < prob_apply_force
-                or self.external_force_time_remaining < self.external_force_duration
-            ):
+            if np.random.rand() < prob_apply_force or self.external_force_time_remaining < self.external_force_duration:
                 if self.perturbs is None:
-                    self.body_ids, self.perturbs = (
-                        self._get_random_bodies_random_forces(
-                            Simulator.DEFAULT_N_BODY_FEXT
-                        )
-                    )
+                    self.body_ids, self.perturbs = self._get_random_bodies_random_forces(Simulator.DEFAULT_N_BODY_FEXT)
 
                 self.robot.data.xfrc_applied[self.body_ids] = self.perturbs
 
@@ -295,9 +270,7 @@ class Simulator(object):
         self.external_force_time_remaining = duration
 
         if self.verbose:
-            print(
-                f"Applying external force: Duration = {duration}s, Intensity = {intensity}N, Period = {period}s"
-            )
+            print(f"Applying external force: Duration = {duration}s, Intensity = {intensity}N, Period = {period}s")
 
     def run(
         self,
@@ -370,9 +343,7 @@ class Simulator(object):
 
         # With viewer
         if use_viewer:
-            with mujoco.viewer.launch_passive(
-                self.robot.model, self.robot.data
-            ) as viewer:
+            with mujoco.viewer.launch_passive(self.robot.model, self.robot.data) as viewer:
 
                 # Enable wireframe rendering of the entire scene.
                 viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_REFLECTION] = 0
@@ -382,17 +353,14 @@ class Simulator(object):
                 viewer.sync()
                 sim_start_time = time.time()
                 while viewer.is_running() and (
-                    simulation_time < 0.0
-                    or self.sim_step < simulation_time * (1 / self.sim_dt)
+                    simulation_time < 0.0 or self.sim_step < simulation_time * (1 / self.sim_dt)
                 ):
                     self._simulation_step_with_timings(real_time)
                     self.update_visuals(viewer)
                     viewer.sync()
 
                     if record_video:
-                        self._record_frame(
-                            video_writer, renderer, cam, playback_speed, fps
-                        )
+                        self._record_frame(video_writer, renderer, cam, playback_speed, fps)
 
                     if self._stop_sim():
                         break
@@ -400,9 +368,7 @@ class Simulator(object):
         # No viewer
         else:
             sim_start_time = time.time()
-            while simulation_time < 0.0 or self.sim_step < simulation_time * (
-                1 / self.sim_dt
-            ):
+            while simulation_time < 0.0 or self.sim_step < simulation_time * (1 / self.sim_dt):
                 self._simulation_step_with_timings(real_time)
 
                 if record_video:
@@ -435,9 +401,7 @@ class Simulator(object):
         """
         if self.visual_callback_fn != None:
             try:
-                self.visual_callback_fn(
-                    viewer, self.sim_step, self.q, self.v, self.robot.data
-                )
+                self.visual_callback_fn(viewer, self.sim_step, self.q, self.v, self.robot.data)
 
             except Exception as e:
                 if self.verbose:
@@ -467,9 +431,7 @@ class Simulator(object):
         if dt_traj is None:
             dt_traj = np.full((len(q_traj)), self.sim_dt)
 
-        assert len(dt_traj) == len(
-            q_traj
-        ), "Provided state and time intervals should have the same length."
+        assert len(dt_traj) == len(q_traj), "Provided state and time intervals should have the same length."
 
         if record_video:
             video_writer, renderer, cam = self._set_video_params(
@@ -500,9 +462,7 @@ class Simulator(object):
                     time.sleep(dt)
 
                     if record_video:
-                        self._record_frame(
-                            video_writer, renderer, cam, playback_speed, fps
-                        )
+                        self._record_frame(video_writer, renderer, cam, playback_speed, fps)
 
                 if record_video:
                     video_writer.release()

@@ -49,11 +49,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         self.pin_robot = pin.RobotWrapper.BuildFromURDF(
             filename=self.path_urdf,
             package_dirs=self.path_package_dir,
-            root_joint=(
-                pin.JointModelFreeFlyer()
-                if self.floating_base
-                else pin.JointModelFixed()
-            ),
+            root_joint=(pin.JointModelFreeFlyer() if self.floating_base else pin.JointModelFixed()),
             verbose=False,
             meshLoader=pin.GeometryModel() if load_geometry else None,
         )
@@ -165,9 +161,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
             joint_position = self.data.oMi[joint_id].translation
         return joint_position
 
-    def update(
-        self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None
-    ) -> None:
+    def update(self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None) -> None:
         """
         Update pinocchio data with new state.
 
@@ -205,9 +199,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         """
         return self.q, self.v
 
-    def set_pin_rotor_params(
-        self, rotor_inertia: float = 0.0, gear_ratio: float = 1.0
-    ) -> None:
+    def set_pin_rotor_params(self, rotor_inertia: float = 0.0, gear_ratio: float = 1.0) -> None:
         """
         Set Pinocchio rotor parameters for all the actuators.
 
@@ -219,9 +211,7 @@ class PinQuadRobotWrapper(AbstractQuadRobotWrapper):
         self.model.rotorInertia[offset:] = rotor_inertia
         self.model.rotorGearRatio[offset:] = gear_ratio
 
-    def set_pin_limits(
-        self, torque_limit: float = 100.0, vel_limits: float = 100.0
-    ) -> None:
+    def set_pin_limits(self, torque_limit: float = 100.0, vel_limits: float = 100.0) -> None:
         """
         Set Pinocchio limits for all the actuators.
 

@@ -114,20 +114,14 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
 
         # frames with minimal z and contact type > 0
         frame_positions_cnt = np.array(
-            [
-                pos
-                for (i, pos) in enumerate(frame_positions)
-                if self.model.geom_contype[i] > 0
-            ]
+            [pos for (i, pos) in enumerate(frame_positions) if self.model.geom_contype[i] > 0]
         )
 
         min_z = np.min(frame_positions_cnt[:, -1], axis=0)
         id_min_z = np.where(frame_positions[:, -1] == min_z)[0]
 
         # Filter frames at the same location
-        _, id_unique = np.unique(
-            frame_positions[id_min_z, :], return_index=True, axis=0
-        )
+        _, id_unique = np.unique(frame_positions[id_min_z, :], return_index=True, axis=0)
         id_min_z_unique = id_min_z[id_unique]
 
         # Order FL, FR, RL, RR
@@ -148,9 +142,7 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
         """
         spec = mujoco.MjSpec()
         # Init MuJoCo model and data
-        if os.path.splitext(mj_model_str)[-1] == ".xml" and os.path.exists(
-            mj_model_str
-        ):
+        if os.path.splitext(mj_model_str)[-1] == ".xml" and os.path.exists(mj_model_str):
             # From xml file
             spec.from_file(self.pathmj_model_str_xml_mj)
         else:  # or from string
@@ -209,18 +201,13 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
         body_names = [self.model.body(i).name for i in range(self.model.nbody)]
 
         # Parent body names
-        body_parent_names = [
-            self.model.body(self.model.body(i).parentid).name
-            for i in range(self.model.nbody)
-        ]
+        body_parent_names = [self.model.body(self.model.body(i).parentid).name for i in range(self.model.nbody)]
 
         # Body end effectors (that have no children)
         body_eeff_names = list(set(body_names) - set(body_parent_names))
 
         body_eeff_name2id = {
-            eeff_name: mujoco.mj_name2id(
-                self.model, mujoco.mjtObj.mjOBJ_BODY, eeff_name
-            )
+            eeff_name: mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, eeff_name)
             for eeff_name in body_eeff_names
         }
 
@@ -231,9 +218,7 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
         Init actuator name to id map.
         """
         joint_name2act_id = {
-            self.model.joint(self.model.actuator(i).trnid[0])  # Joint id
-            .name: self.model.actuator(i)
-            .id
+            self.model.joint(self.model.actuator(i).trnid[0]).name: self.model.actuator(i).id  # Joint id
             for i in range(self.model.nu)
         }
         return joint_name2act_id
@@ -289,9 +274,7 @@ class MJQuadRobotWrapper(AbstractQuadRobotWrapper):
 
         self.data.ctrl = torque_ctrl
 
-    def update(
-        self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None
-    ) -> None:
+    def update(self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None) -> None:
         """
         Reset robot state and simulation state.
 

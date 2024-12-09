@@ -4,17 +4,11 @@
 import numpy as np
 import pinocchio as pin
 import mujoco
-from typing import Any, Tuple
+from typing import Tuple
 from numpy.typing import NDArray
 
 from utils.mj_pin_wrapper.mj_robot import MJQuadRobotWrapper
 from utils.mj_pin_wrapper.pin_robot import PinQuadRobotWrapper
-
-######################################################################
-#####
-#####                   MJPinRobotWrapper
-#####
-######################################################################
 
 
 class MJPinQuadRobotWrapper(object):
@@ -94,9 +88,7 @@ class MJPinQuadRobotWrapper(object):
     #     q, v = self.get_state()
     #     self.pin.update(q, v)
 
-    def reset(
-        self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None
-    ) -> None:
+    def reset(self, q: NDArray[np.float64] = None, v: NDArray[np.float64] = None) -> None:
         """
         Reset robot state and simulation state.
 
@@ -131,9 +123,7 @@ class MJPinQuadRobotWrapper(object):
         """
         Collision status in MuJoCo.
         """
-        self.collided = self.mj.is_collision(
-            exclude_end_effectors, only_base, self_collision
-        )
+        self.collided = self.mj.is_collision(exclude_end_effectors, only_base, self_collision)
         return self.collided
 
     def foot_contacts(self) -> dict[str, int]:
