@@ -46,6 +46,7 @@ class Simulator(object):
         """
         Reset flags and timings.
         """
+        self.q, self.v = self.robot.get_state()
         self.sim_step = 0
         self.frame_count = 0
         self.simulation_it_time = []
@@ -419,6 +420,7 @@ class Simulator(object):
                         playback_speed: float = 1.0,
                         frame_height: int = 360,
                         frame_width: int = 640,
+                        visual_callback_fn: Callable = None,
                         ) -> None:
         """
         Visualize a trajectory in the viewer.
@@ -428,8 +430,12 @@ class Simulator(object):
             dt_traj (np.ndarray): Time intervals ([T, nq])
             loop (bool): Loop the visualization
         """
+        self.visual_callback_fn = visual_callback_fn
+        
         if dt_traj is None:
             dt_traj = np.full((len(q_traj)), self.sim_dt)
+        elif len(dt_traj) == len(q_traj) - 1:
+            dt_traj = np.insert(dt_traj, 0, 0.)
 
         assert len(dt_traj) == len(q_traj), "Provided state and time intervals should have the same length."
 
@@ -458,7 +464,11 @@ class Simulator(object):
                     self.robot.data.qpos = self.robot.xyzw2wxyz(q)
                     
                     mujoco.mj_kinematics(self.robot.model, self.robot.data)
+
+                    self.update_visuals(viewer)
+
                     viewer.sync()
+                    self.sim_step += 1
                     time.sleep(dt)
 
                     if record_video:
